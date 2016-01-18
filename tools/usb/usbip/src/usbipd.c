@@ -77,11 +77,50 @@ static const char usbipd_help_string[] =
 	"	-tPORT, --tcp-port PORT\n"
 	"		Listen on TCP/IP port PORT.\n"
 	"\n"
+	"	-iSECS, --idle SECS\n"
+	"		Set idle time before TCP keepalive sends first probe.\n"
+	"\n"
+	"	-ISECS, --interval SECS\n"
+	"		Set time between subsequent TCP keepalive probes.\n"
+	"\n"
+	"	-cCOUNT, --count COUNT\n"
+	"		Set number of unack'ed probes to send before\n"
+	"		considering connection dead.\n"
+	"\n"
 	"	-h, --help\n"
 	"		Print this help.\n"
 	"\n"
 	"	-v, --version\n"
 	"		Show version.\n";
+
+static int keepalive_idle	= -1;
+static int keepalive_intvl	= -1;
+static int keepalive_count	= -1;
+
+static int parse_keepalive_arg(char *arg)
+{
+	dbg("parsing keepalive arg '%s'", arg);
+	char *end;
+	unsigned long int value = strtoul(arg, &end, 10);
+
+	if (end == arg) {
+		err("keepalive: could not parse '%s' as an integer", arg);
+		return -1;
+	}
+
+	if (*end != '\0') {
+		err("keepalive: garbage at end of '%s'", arg);
+		return -1;
+	}
+
+	if (value > UINT16_MAX) {
+		err("keepalive: %s too high (max=%d)",
+		    arg, UINT16_MAX);
+		return -1;
+	}
+
+	return value;
+}
 
 static void usbipd_help(void)
 {
@@ -119,6 +158,16 @@ static int recv_request_import(int sockfd)
 	if (found) {
 		/* should set TCP_NODELAY for usbip */
 		usbip_net_set_nodelay(sockfd);
+
+		/* set keepalive */
+		if (keepalive_idle > -1
+				&& keepalive_intvl > -1
+				&& keepalive_count > -1) {
+			usbip_net_set_keepalive(sockfd);
+			usbip_net_set_keepalive_time(sockfd, keepalive_idle);
+			usbip_net_set_keepalive_intvl(sockfd, keepalive_intvl);
+			usbip_net_set_keepalive_count(sockfd, keepalive_count);
+		}
 
 		/* export device needs a TCP/IP socket descriptor */
 		rc = usbip_host_export_device(edev, sockfd);
@@ -585,12 +634,14 @@ int main(int argc, char *argv[])
 		{ "ipv4",     no_argument,       NULL, '4' },
 		{ "ipv6",     no_argument,       NULL, '6' },
 		{ "daemon",   no_argument,       NULL, 'D' },
-		{ "daemon",   no_argument,       NULL, 'D' },
 		{ "debug",    no_argument,       NULL, 'd' },
 		{ "pid",      optional_argument, NULL, 'P' },
 		{ "tcp-port", required_argument, NULL, 't' },
 		{ "help",     no_argument,       NULL, 'h' },
 		{ "version",  no_argument,       NULL, 'v' },
+		{ "idle",     required_argument, NULL, 'i' },
+		{ "interval", required_argument, NULL, 'I' },
+		{ "count",    required_argument, NULL, 'c' },
 		{ NULL,	      0,                 NULL,  0  }
 	};
 
@@ -614,7 +665,8 @@ int main(int argc, char *argv[])
 
 	cmd = cmd_standalone_mode;
 	for (;;) {
-		opt = getopt_long(argc, argv, "46DdP::t:hv", longopts, NULL);
+		opt = getopt_long(argc,	argv, "46DdP::t:hvi:I:c:",
+			longopts, NULL);
 
 		if (opt == -1)
 			break;
@@ -643,6 +695,15 @@ int main(int argc, char *argv[])
 			break;
 		case 'v':
 			cmd = cmd_version;
+			break;
+		case 'i':
+			keepalive_idle = parse_keepalive_arg(optarg);
+			break;
+		case 'I':
+			keepalive_intvl = parse_keepalive_arg(optarg);
+			break;
+		case 'c':
+			keepalive_count = parse_keepalive_arg(optarg);
 			break;
 		case '?':
 			usbipd_help();

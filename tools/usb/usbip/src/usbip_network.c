@@ -243,6 +243,42 @@ int usbip_net_set_keepalive(int sockfd)
 	return ret;
 }
 
+int usbip_net_set_keepalive_time(int sockfd, int seconds)
+{
+	const int val = seconds;
+	int ret;
+
+	ret = setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPIDLE, &val, sizeof(val));
+	if (ret < 0)
+		dbg("setsockopt: TCP_KEEPIDLE");
+
+	return ret;
+}
+
+int usbip_net_set_keepalive_intvl(int sockfd, int seconds)
+{
+	const int val = seconds;
+	int ret;
+
+	ret = setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPINTVL, &val, sizeof(val));
+	if (ret < 0)
+		dbg("setsockopt: TCP_KEEPINTVL");
+
+	return ret;
+}
+
+int usbip_net_set_keepalive_count(int sockfd, int count)
+{
+	const int val = count;
+	int ret;
+
+	ret = setsockopt(sockfd, IPPROTO_TCP, TCP_KEEPCNT, &val, sizeof(val));
+	if (ret < 0)
+		dbg("setsockopt: TCP_KEEPCNT");
+
+	return ret;
+}
+
 int usbip_net_set_v6only(int sockfd)
 {
 	const int val = 1;
